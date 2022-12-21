@@ -223,3 +223,40 @@ class TransformerBlock(nn.Module):
         x = x + self.attention_block(self.attention_norm(x))
         x = x + self.feed_forward(self.feed_forward_norm(x))
         return x
+
+
+class PositionalEmbedding(nn.Module):
+    def __init__(self, embedding_dims: int, block_size: int):
+
+        """
+        Helper module to add positional embedding to an input
+        embedding
+
+        Arguments
+        ---------
+
+        embedding_dims : int
+            size of the embedding dimension
+        block_size : int
+            maximum size of an input (T dimension)
+        """
+
+        super(PositionalEmbedding, self).__init__()
+
+        self.embedding_dims = embedding_dims
+        self.block_size = block_size
+
+        self.embedding = nn.Embedding(block_size, embedding_dims)
+
+    def forward(self, x):
+
+        B, T, E = x.shape  # batch size, tokens, embedding dims
+
+        # create range for size of this batch
+        position_range = torch.arange(T)
+        # get embeddings, then add Batch broadcasting dimension
+        position_embeddings = self.embedding(position_range)[None, ...]
+
+        x = x + position_embeddings
+
+        return x
