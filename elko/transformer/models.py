@@ -253,7 +253,7 @@ class PositionalEmbedding(nn.Module):
         B, T, E = x.shape  # batch size, tokens, embedding dims
 
         # create range for size of this batch
-        position_range = torch.arange(T)
+        position_range = torch.arange(T).to(x.device)
         # get embeddings, then add Batch broadcasting dimension
         position_embeddings = self.embedding(position_range)[None, ...]
 
@@ -332,6 +332,6 @@ class CausalTransformer(nn.Module):
         pos_emb = self.positional_embedding(tok_emb)
         hidden_states = self.transformer_blocks(pos_emb)
 
-        logits = torch.softmax(self.lm_head(hidden_states), dim=-1)
+        logits = self.lm_head(hidden_states)
 
         return logits
