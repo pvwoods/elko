@@ -317,6 +317,7 @@ class CausalTransformer(nn.Module):
         self.positional_embedding = PositionalEmbedding(
             self.embedding_dims, self.block_size
         )
+        self.post_embedding_dropout = nn.Dropout(self.dropout)
         self.transformer_blocks = nn.Sequential(
             *[
                 TransformerBlock(embedding_dims, heads, block_size, ff_dims, dropout)
@@ -324,13 +325,19 @@ class CausalTransformer(nn.Module):
             ]
         )
 
+        self.post_transformer_block_norm = nn.LayerNorm(self.embedding_dims)
+
         self.lm_head = nn.Linear(self.embedding_dims, self.vocab_size)
 
     def forward(self, x):
 
         tok_emb = self.token_embedding(x)
+
         pos_emb = self.positional_embedding(tok_emb)
+        pos_emb = self.post_embedding_dropout(pos_emb)
+
         hidden_states = self.transformer_blocks(pos_emb)
+        hidden_states = self.post_transformer_block_norm(hidden_states)
 
         logits = self.lm_head(hidden_states)
 
