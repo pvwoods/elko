@@ -260,3 +260,78 @@ class PositionalEmbedding(nn.Module):
         x = x + position_embeddings
 
         return x
+
+
+class CausalTransformer(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        num_layers: int,
+        embedding_dims: int,
+        heads: int,
+        block_size: int,
+        ff_dims: int,
+        dropout: float = 0.1,
+    ):
+
+        """
+        A GPT style, decoder only causal transformer
+
+        ...
+
+        Arguments
+        ---------
+
+        vocab_size : int
+            total number of valid tokens in the tokenizer vocabulary
+        num_layers : int
+            number of transformer block layers to stack for the forward pass after the embedding step
+        embedding_dims : int
+            size of the embedding dimension
+        heads : int
+            number of heads in the attention block
+        block_size : int
+            maximum size of an input (T dimension)
+        ff_dims : int
+            number of hidden states for the feed forward layers
+        dropout : float
+            amount of dropout to apply after attention. 0->1
+
+        TODO's
+        ------
+        * not config driven
+        * dropout always assumed to exist
+        """
+
+        super(CausalTransformer, self).__init__()
+
+        self.vocab_size = vocab_size
+        self.num_layers = num_layers
+        self.embedding_dims = embedding_dims
+        self.heads = heads
+        self.block_size = block_size
+        self.ff_dims = ff_dims
+        self.dropout = dropout
+
+        self.token_embedding = nn.Embedding(self.vocab_size, self.embedding_dims)
+        self.positional_embedding = PositionalEmbedding(
+            self.embedding_dims, self.block_size
+        )
+        self.transformer_blocks = nn.Sequential(
+            *[
+                TransformerBlock(embedding_dims, heads, block_size, ff_dims, dropout)
+                for _ in range(self.num_layers)
+            ]
+        )
+
+        self.lm_head = nn.Linear(self.embedding_dims, self.vocab_size)
+
+    def forward(self, x):
+
+        tok_emb = self.token_embedding(x)
+        pos_emb = self.positional_embedding(tok_emb)
+        hidden_states = self.transformer_blocks(pos_emb)
+
+        logits = torch.softmax(self.lm_head(hidden_states), dim=-1)
+
+        return logits
