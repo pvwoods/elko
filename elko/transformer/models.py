@@ -167,3 +167,59 @@ class CausalSelfAttention(nn.Module):
 
         # return with residual dropout
         return self.residual_dropout(out)
+
+
+class TransformerBlock(nn.Module):
+    def __init__(
+        self,
+        embedding_dims: int,
+        heads: int,
+        block_size: int,
+        ff_dims: int,
+        dropout: float = 0.1,
+    ):
+
+        """
+        Basic transformer block.  Applies attention followed by feed forward with residual connections.
+
+        ...
+
+        Arguments
+        ---------
+
+        embedding_dims : int
+            size of the embedding dimension
+        heads : int
+            number of heads in the attention block
+        block_size : int
+            maximum size of an input (T dimension)
+        ff_dims : int
+            number of hidden states for the feed forward layers
+        dropout : float
+            amount of dropout to apply after attention. 0->1
+
+        TODO's
+        ------
+        * not config driven
+        * dropout always assumed to exist
+        """
+
+        super(TransformerBlock, self).__init__()
+
+        self.embedding_dims = embedding_dims
+        self.heads = heads
+        self.block_size = block_size
+        self.ff_dims = ff_dims
+        self.dropout = dropout
+
+        self.attention_block = CausalSelfAttention(
+            self.embedding_dims, self.heads, self.block_size, self.dropout
+        )
+        self.attention_norm = nn.LayerNorm(self.embedding_dims)
+        self.feed_forward = FeedForwardMLP(self.embedding_dims, self.ff_dims)
+        self.feed_forward_norm = nn.LayerNorm(self.embedding_dims)
+
+    def forward(self, x):
+        x = x + self.attention_block(self.attention_norm(x))
+        x = x + self.feed_forward(self.feed_forward_norm(x))
+        return x
