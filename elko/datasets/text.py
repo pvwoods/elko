@@ -48,7 +48,8 @@ def name_tokenizer(x: str, block_size:int):
 class NamesDataset(TokenizedTextFileDataset):
 
     def __init__(self, file_path:str, block_size:int):
-
+        
+        # TODO: I need to make the sliding window for this dataset
         preprocess = lambda text: text.split('\n')
         tokenizer = lambda xs: [name_tokenizer(x, block_size) for x in xs]
 
