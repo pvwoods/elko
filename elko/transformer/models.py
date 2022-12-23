@@ -34,15 +34,17 @@ class FeedForwardMLP(nn.Module):
         self.in_dims = in_dims
         self.hidden_dims = hidden_dims
 
-        self.sequence = nn.Sequential(
-            nn.Linear(self.in_dims, self.hidden_dims),
-            nn.ReLU(),
-            nn.Linear(self.hidden_dims, self.in_dims),
-            nn.Dropout(dropout),
-        )
+        self.in_projection = nn.Linear(self.in_dims, self.hidden_dims)
+        self.activation = nn.LeakyReLU()
+        self.out_projection = nn.Linear(self.hidden_dims, self.in_dims)
+        self.dropout = nn.Dropout(dropout)
+        
 
     def forward(self, x):
-        return self.sequence(x)
+        y = self.in_projection(x)
+        y = self.activation(y)
+        y = self.out_projection(y)
+        return self.dropout(y)
 
 
 class CausalSelfAttention(nn.Module):
@@ -327,7 +329,28 @@ class CausalTransformer(nn.Module):
 
         self.post_transformer_block_norm = nn.LayerNorm(self.embedding_dims)
 
-        self.lm_head = nn.Linear(self.embedding_dims, self.vocab_size)
+        self.lm_head = nn.Linear(self.embedding_dims, self.vocab_size, bias=False)
+
+
+        # initialize all weights according to gpt-2 paper
+        self.apply(self._init_weights)
+        # reduce scale/confidence of the out projections
+        target_std = 0.02/math.sqrt(2 * self.num_layers)
+        for pn, p in self.named_parameters():
+            if pn.endswith('out_projection.weight'):
+                torch.nn.init.normal_(p, mean=0.0, std=target_std)
+    
+    # swiped from karpathy implementation
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        elif isinstance(module, nn.LayerNorm):
+            torch.nn.init.zeros_(module.bias)
+            torch.nn.init.ones_(module.weight)
 
     def forward(self, x):
 

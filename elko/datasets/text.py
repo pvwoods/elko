@@ -26,8 +26,8 @@ class TokenizedTextFileDataset(Dataset):
 
         # convert to tensor
         data = torch.tensor(tokenized_text).view(-1, self.block_size)
-        self.inputs = data[:, :-1]
-        self.targets = data[:, 1:].contiguous()
+        self.inputs = data[:, :(block_size - 1)]
+        self.targets = data[:, 1:]
 
     def __len__(self):
         return self.inputs.shape[0]
@@ -40,16 +40,15 @@ def name_tokenizer(x: str, block_size:int):
     a very simple tokenizer, assumes that these are names composed
     of the 26 characters of the alphabet
     """
-    name_tokens = [0] + [(ord(xi) - ord("a")) + 1 for xi in x.lower().strip()]
+    name_tokens = [0] + [(ord(xi) - ord("a")) + 1 for xi in x.lower().strip()] + [27]
     padding_needed = block_size - len(name_tokens)
-    padding = [27] * padding_needed
+    padding = [28] * padding_needed
     return name_tokens + padding
 
 class NamesDataset(TokenizedTextFileDataset):
 
     def __init__(self, file_path:str, block_size:int):
         
-        # TODO: I need to make the sliding window for this dataset
         preprocess = lambda text: text.split('\n')
         tokenizer = lambda xs: [name_tokenizer(x, block_size) for x in xs]
 
