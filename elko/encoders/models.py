@@ -1,40 +1,63 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import List, Tuple
-
-class ResnetDistBlock(nn.Module):
-
-    def __init__(self, in_dims:int, out_dims:int, groups:int):
-
-        super(ResnetBlock, self).__init__()
-
-        self.in_dims = in_dims
-        self.out_dims = out_dims
-        self.groups = groups
-
-        self.projection = nn.Conv2d(self.in_dims, self.out_dims, 3, padding=1)
-        self.activation = nn.SiLU()
-        self.norm = nn.GroupNorm(self.groups, self.out_dims)
-
-    def forward(self, x):
-        h = self.projection(x)
-        h = self.norm(h)
-        return self.activation(h)
 
 class ResnetBlock(nn.Module):
 
-    def __init__(self, in_dims:int, out_dims:int, groups:int):
-
+    def __init__(self, in_channels:int, out_channels:int, stride:int = 1, residual_layer:bool=True, conv_layer=None, conv_activation=None, out_activation=None) -> None:
         super(ResnetBlock, self).__init__()
 
-        self.in_block = ResnetDistBlock(in_dims, out_dims, groups)
-        self.out_block = ResnetDistBlock(out_dims, in_dims, groups)
-        self.residual_convolution = nn.Conv2d(in_dims, out_dims, 1) if in_dims != out_dims else nn.Identity()
+        assert 0 < stride <= 2
+
+        if conv_activation is None:
+            conv_activation = nn.ReLU
+
+        if conv_layer is None:
+            conv_layer = nn.Conv2d
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+        self.residual_layer = residual_layer
+
+        self.sequence = nn.Sequential(
+            conv_layer(in_channels, out_channels, 3, stride=stride, padding=1),
+            nn.BatchNorm2d(out_channels),
+            conv_activation(),
+            conv_layer(out_channels, out_channels, 3, stride=stride, padding=1),
+            nn.BatchNorm2d(out_channels)
+        )
+
+        self.out_activation = nn.ReLU() if out_activation is None else out_activation()
+
+    def identity(self, x):
+        x = self.make_identity_matrix(x)
+        if self.stride == 2:
+            x = F.avg_pool2d(x, 2, 2)
+        return x
+    
+    def make_identity_matrix(self, x):
+
+        if self.in_channels == self.out_channels:
+            return x
+
+        # we need to add additional channels
+        B, C, H, W = x.shape
+        NC = self.out_channels - C
+        z = torch.zeros(B, NC, H, W, dtype=x.dtype, device=x.device)
+
+        return torch.cat([x, z], dim=1)
 
     def forward(self, x):
-        h = self.in_block(x)
-        h = self.out_block(h)
-        return h + self.residual_convolution(x)
+
+        out = self.sequence(x)
+        if self.residual_layer:
+            r = self.identity(x)
+            print("b", r.shape, out.shape)
+            out = self.out_activation(out + r)
+
+        return out
 
 class MinVAE(nn.Module):
     
